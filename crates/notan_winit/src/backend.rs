@@ -1,31 +1,30 @@
-use crate::window::WinitWindowBackend;
-use crate::{keyboard, mouse, touch};
-use notan_app::{FrameState, WindowConfig};
-use winit::event_loop::ControlFlow;
-
-#[cfg(feature = "clipboard")]
-use crate::clipboard;
-
-#[cfg(feature = "drop_files")]
-use notan_app::DroppedFile;
-
-use notan_app::{
-    App, Backend, BackendSystem, DeviceBackend, Event, EventIterator, InitializeFn, WindowBackend,
-};
-#[cfg(feature = "audio")]
-use notan_audio::AudioBackend;
-#[cfg(feature = "audio")]
-use notan_oddio::OddioBackend;
-
-use glutin::display::GlDisplay;
 #[cfg(feature = "audio")]
 use std::cell::RefCell;
 use std::ffi::CString;
 #[cfg(feature = "audio")]
 use std::rc::Rc;
 
+use glutin::display::GlDisplay;
 use winit::event::{Event as WEvent, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoopBuilder};
 use winit::event_loop::EventLoop;
+use winit::platform::x11::EventLoopBuilderExtX11;
+
+use notan_app::{FrameState, WindowConfig};
+use notan_app::{
+    App, Backend, BackendSystem, DeviceBackend, Event, EventIterator, InitializeFn, WindowBackend,
+};
+#[cfg(feature = "drop_files")]
+use notan_app::DroppedFile;
+#[cfg(feature = "audio")]
+use notan_audio::AudioBackend;
+#[cfg(feature = "audio")]
+use notan_oddio::OddioBackend;
+
+use crate::{keyboard, mouse, touch};
+#[cfg(feature = "clipboard")]
+use crate::clipboard;
+use crate::window::WinitWindowBackend;
 
 pub struct WinitBackend {
     window: Option<WinitWindowBackend>,
@@ -98,7 +97,12 @@ impl BackendSystem for WinitBackend {
         S: 'static,
         R: FnMut(&mut App, &mut S) -> Result<FrameState, String> + 'static,
     {
-        let event_loop = EventLoop::new();
+        let event_loop =
+            if cfg!(feature = "winit-x11-any-thread") {
+                EventLoopBuilder::new().with_any_thread(true).build()
+            } else {
+                EventLoopBuilder::new().build()
+            };
         let win = WinitWindowBackend::new(window, &event_loop)?;
         let mut dpi_scale = win
             .window()
@@ -320,7 +324,7 @@ impl BackendSystem for WinitBackend {
             let symbol = CString::new(s).unwrap();
             ctx.get_proc_address(symbol.as_c_str()).cast()
         })
-        .unwrap();
+            .unwrap();
         Box::new(backend)
     }
 
